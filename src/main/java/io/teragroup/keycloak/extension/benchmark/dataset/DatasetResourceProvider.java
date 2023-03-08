@@ -27,15 +27,17 @@ import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOp
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.LAST_REALM;
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.LAST_USER;
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.REMOVE_REALMS;
+import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.REMOVE_USERS;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.Collections;
-import java.util.stream.Collector;
+import java.util.Comparator;
 import java.util.stream.Collectors;
 
 import javax.ws.rs.DELETE;
@@ -65,6 +67,7 @@ import org.keycloak.models.RealmProvider;
 import org.keycloak.models.RoleModel;
 import org.keycloak.models.UserCredentialModel;
 import org.keycloak.models.UserModel;
+import org.keycloak.models.UserProvider;
 import org.keycloak.models.UserSessionModel;
 import org.keycloak.models.cache.CacheRealmProvider;
 import org.keycloak.models.utils.KeycloakModelUtils;
@@ -785,6 +788,155 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     }
 
     @GET
+    @Path("/remove-users")
+    @NoCache
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response removeUsers() {
+        boolean started = false;
+        boolean taskAdded = false;
+        try {
+            DatasetConfig config = ConfigUtil.createConfigFromQueryParams(uriInfo, REMOVE_USERS);
+
+            if (!config.getRemoveAll() && (config.getFirstToRemove() == -1 || config.getLastToRemove() == -1)) {
+                throw new DatasetException(
+                        "Either remove-all need to be true OR both first-to-remove and last-to-remove need to be filled");
+            }
+
+            // Use the cache
+            RealmModel realm = baseSession.realms().getRealmByName(config.getRealmName());
+            if (realm == null) {
+                throw new DatasetException("Realm '" + config.getRealmName() + "' not found");
+            }
+
+            RealmContext context = new RealmContext(config);
+            context.setRealm(realm);
+
+            Task task;
+            if (config.getRemoveAll()) {
+                task = Task.start(String.format("Removal of all users with prefix %s from realm %s",
+                        config.getUserPrefix(), realm.getName()));
+            } else {
+                task = Task.start(String.format("Removal of all users from %s%d to %s%d from realm %s",
+                        config.getUserPrefix(), config.getFirstToRemove(),
+                        config.getUserPrefix(), (config.getLastToRemove() - 1),
+                        realm.getName()));
+            }
+
+            TaskManager taskManager = new TaskManager(baseSession);
+            Task existingTask = taskManager.addTaskIfNotInProgress(task, config.getTaskTimeout());
+            if (existingTask != null) {
+                return Response.status(400).entity(TaskResponse.errorSomeTaskInProgress(existingTask, getStatusUrl()))
+                        .build();
+            } else {
+                taskAdded = true;
+            }
+
+            logger.infof("Trigger removing users with the configuration: %s", config);
+
+            // Run this in separate thread to not block HTTP request
+            new Thread(() -> removeUsersImpl(context, task, config)).start();
+            started = true;
+
+            return Response.ok(TaskResponse.taskStarted(task, getStatusUrl())).build();
+        } catch (DatasetException de) {
+            return handleDatasetException(de);
+        } finally {
+            if (taskAdded && !started) {
+                new TaskManager(baseSession).removeExistingTask(false);
+            }
+        }
+    }
+
+    /**
+     * find insertion point for user with given index, similar to how sort.Search
+     * works in Golang.
+     * This should work regardless of whether said index could be found in the users
+     * list or not.
+     * 
+     * @param users     list of users
+     * @param config
+     * @param userIndex index to search
+     * @return insertion point
+     */
+    private int findUserInsertionPoint(List<UserModel> users, DatasetConfig config, int userIndex) {
+        var prefixLength = config.getUserPrefix().length();
+        var ind = Collections.binarySearch(
+                users.stream()
+                        .map(u -> Integer.parseInt(u.getUsername().substring(prefixLength)))
+                        .collect(Collectors.toList()),
+                userIndex, Comparator.naturalOrder());
+        if (ind < 0) {
+            return -1 - ind;
+        }
+        return ind;
+    }
+
+    private void addUserDeletionTasks(RealmContext context, Task task, DatasetConfig config, ExecutorHelper executor) {
+        RealmModel realm = context.getRealm();
+        var usersCount = baseSession.users().getUsersCount(realm);
+        Map<String, String> params = null;
+        var prefixLength = config.getUserPrefix().length();
+        Collection<Integer> deleteCounts = Collections.synchronizedCollection(new ArrayList<>());
+        for (int i = 0; i < usersCount; i += config.getUsersPerTransaction()) {
+            final int usersStartIndex = i;
+            final int endIndex = Math.min(usersStartIndex + config.getUsersPerTransaction(), usersCount);
+
+            logger.tracef("usersStartIndex: %d, usersEndIndex: %d", usersStartIndex, endIndex);
+
+            // Run this concurrently with multiple threads
+            executor.addTaskRunningInTransaction(session -> {
+                var usersStream = session.getProvider(UserProvider.class)
+                        .searchForUserStream(realm, params, usersStartIndex, usersCount)
+                        .filter(user -> user.getUsername().startsWith(config.getUserPrefix()));
+
+                List<UserModel> users = null;
+                int deleteCount = 0;
+                if (config.getRemoveAll()) {
+                    users = usersStream.collect(Collectors.toList());
+                } else {
+                    users = usersStream.sorted((user1, user2) -> {
+                        String name1 = user1.getUsername().substring(prefixLength);
+                        String name2 = user2.getUsername().substring(prefixLength);
+                        return Integer.parseInt(name1) - Integer.parseInt(name2);
+                    }).collect(Collectors.toList());
+                    users = users.subList(
+                            findUserInsertionPoint(users, config, config.getFirstToRemove()),
+                            findUserInsertionPoint(users, config, config.getLastToRemove()));
+                }
+
+                for (var user : users) {
+                    if (session.users().removeUser(realm, user)) {
+                        deleteCount += 1;
+                    } else {
+                        logger.warnf("User %s did not exist", user.getUsername());
+                    }
+                }
+
+                deleteCounts.add(deleteCount);
+                if (((endIndex) / config.getUsersPerTransaction()) % 20 == 0) {
+                    task.info(logger, "Deleted %d users in realm %s",
+                            deleteCounts.stream().reduce(0, Integer::sum),
+                            context.getRealm().getName());
+                }
+            });
+        }
+    }
+
+    private void removeUsersImpl(RealmContext context, Task task, DatasetConfig config) {
+        ExecutorHelper executor = new ExecutorHelper(
+                config.getThreadsCount(), baseSession.getKeycloakSessionFactory(), config);
+        try {
+            addUserDeletionTasks(context, task, config, executor);
+            executor.waitForAllToFinish();
+            success();
+        } catch (Exception ex) {
+            logException(ex);
+        } finally {
+            cleanup(executor);
+        }
+    }
+
+    @GET
     @Path("/status")
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
@@ -1047,7 +1199,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
             user.setEmail(username + String.format("@%s.com", realm.getName()));
 
             // add attributes to user
-            for (var entry:config.getAttributes().entrySet()) {
+            for (var entry : config.getAttributes().entrySet()) {
                 user.setAttribute(entry.getKey(), entry.getValue());
             }
 
@@ -1096,7 +1248,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
             }
 
             // grant named client roles
-            for (var role:context.getNamedClientRoles()) {
+            for (var role : context.getNamedClientRoles()) {
                 user.grantRole(role);
 
                 logger.tracef("Assigned client role %s to the user %s", role.getName(),
@@ -1104,7 +1256,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
             }
 
             // add user to named groups
-            for (var group:context.getNamedGroups()) {
+            for (var group : context.getNamedGroups()) {
                 user.joinGroup(group);
 
                 logger.tracef("Assigned group %s to the user %s", group.getName(),
