@@ -1,0 +1,3 @@
+io.teragroup.keycloak.extension.benchmark.dataset.DatasetResourceProviderFactory
+io.teragroup.keycloak.extension.benchmark.cache.CacheResourceProviderFactory
+io.teragroup.keycloak.extension.benchmark.cache.RemoteCacheResourceProviderFactory
