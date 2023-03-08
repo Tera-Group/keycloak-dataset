@@ -30,9 +30,12 @@ import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOp
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 import java.util.Collections;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import javax.ws.rs.DELETE;
@@ -1043,6 +1046,11 @@ public class DatasetResourceProvider implements RealmResourceProvider {
             user.setLastName(username + "-last");
             user.setEmail(username + String.format("@%s.com", realm.getName()));
 
+            // add attributes to user
+            for (var entry:config.getAttributes().entrySet()) {
+                user.setAttribute(entry.getKey(), entry.getValue());
+            }
+
             String password = String.format("%s-password", username);
             user.credentialManager().updateCredential(UserCredentialModel.password(password, false));
 
@@ -1076,6 +1084,30 @@ public class DatasetResourceProvider implements RealmResourceProvider {
                 user.joinGroup(context.getGroups().get(groupIndex));
 
                 logger.tracef("Assigned group %s to the user %s", context.getGroups().get(groupIndex).getName(),
+                        user.getUsername());
+            }
+
+            // grant named realm roles
+            for (var role : context.getNamedRealmRoles()) {
+                user.grantRole(role);
+
+                logger.tracef("Assigned realm role %s to the user %s", role.getName(),
+                        user.getUsername());
+            }
+
+            // grant named client roles
+            for (var role:context.getNamedClientRoles()) {
+                user.grantRole(role);
+
+                logger.tracef("Assigned client role %s to the user %s", role.getName(),
+                        user.getUsername());
+            }
+
+            // add user to named groups
+            for (var group:context.getNamedGroups()) {
+                user.joinGroup(group);
+
+                logger.tracef("Assigned group %s to the user %s", group.getName(),
                         user.getUsername());
             }
 
@@ -1155,6 +1187,30 @@ public class DatasetResourceProvider implements RealmResourceProvider {
             logger.debugf("CACHE: After client roles loaded in the realm %s", realm.getName());
             context.setClientCount(sortedClients.size());
             context.setClientRoles(sortedClientRoles);
+
+            // fetch named realm roles
+            var realmRolesNameSet = config.getRealmRolesSet();
+            context.setNamedRealmRoles(
+                    realm.getRolesStream()
+                            .filter(roleModel -> realmRolesNameSet.contains(roleModel.getName()))
+                            .collect(Collectors.toList()));
+
+            // fetch named client roles
+            var clientRoles = config.getClientRoles();
+            var clientsMap = realm.getClientsStream()
+                    .filter(c -> clientRoles.containsKey(c.getName()))
+                    .collect(Collectors.toMap(ClientModel::getName, Function.identity()));
+            context.setNamedClientRoles(
+                    clientRoles.entrySet().stream().map(entry -> {
+                        var client = clientsMap.get(entry.getKey());
+                        return client.getRolesStream()
+                                .filter(r -> entry.getValue().contains(r.getName()));
+                    }).flatMap(i -> i).collect(Collectors.toList()));
+
+            // fetch named groups
+            var groupNameSet = config.getGroupsSet();
+            context.setNamedGroups(realm.getGroupsStream().filter(g -> groupNameSet.contains(g.getName()))
+                    .collect(Collectors.toList()));
 
         }, config.getTransactionTimeoutInSeconds());
     }

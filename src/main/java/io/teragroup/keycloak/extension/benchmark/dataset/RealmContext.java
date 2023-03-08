@@ -58,6 +58,15 @@ public class RealmContext {
 
     private final AtomicLong usersCount = new AtomicLong();
 
+    // Map of realm roles passed in via grant-realm-roles query param
+    private List<RoleModel> namedRealmRoles = Collections.synchronizedList(new ArrayList<>());
+
+    // Map of client roles passed in via grant-client-roles query param
+    private List<RoleModel> namedClientRoles = Collections.synchronizedList(new ArrayList<>());
+
+    // Map of groups passed in via join-groups query param
+    private List<GroupModel> namedGroups = Collections.synchronizedList(new ArrayList<>());
+
     public RealmContext(DatasetConfig config) {
         this.config = config;
     }
@@ -136,5 +145,29 @@ public class RealmContext {
 
     public long getResourceCount() {
         return resourcesCount.get();
+    }
+    
+    public List<RoleModel> getNamedRealmRoles() {
+        return this.namedRealmRoles;
+    }
+
+    public void setNamedRealmRoles(List<RoleModel> namedRealmRoles) {
+        this.namedRealmRoles = namedRealmRoles;
+    }
+
+    public List<RoleModel> getNamedClientRoles() {
+        return this.namedClientRoles;
+    }
+
+    public void setNamedClientRoles(List<RoleModel> namedClientRoles) {
+        this.namedClientRoles = namedClientRoles;
+    }
+
+    public List<GroupModel> getNamedGroups() {
+        return this.namedGroups;
+    }
+
+    public void setNamedGroups(List<GroupModel> namedGroups) {
+        this.namedGroups = namedGroups;
     }
 }

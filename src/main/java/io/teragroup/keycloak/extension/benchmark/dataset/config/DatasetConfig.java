@@ -31,6 +31,13 @@ import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOp
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.LAST_USER;
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.REMOVE_REALMS;
 
+import java.util.Map;
+import java.util.List;
+import java.util.Set;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+
 /**
  * Configuration parameters, which can be send to the particular datasource
  * operation. They can be send for example through HTTP request
@@ -230,6 +237,22 @@ public class DatasetConfig {
     @QueryParamIntFill(paramName = "users-per-user-policy", defaultValue = 1, operations = CREATE_AUTHZ_CLIENT)
     private int usersPerUserPolicy;
 
+    // The realm roles to grant each user in the format "<role1>;<role2>"
+    @QueryParamListFill(paramName = "grant-realm-roles", operations = {CREATE_USERS})
+    private String[] realmRoles;
+
+    // The client roles to grant each user in the format "<client1>:<role1>;<client2>:<role2>"
+    @QueryParamListFill(paramName = "grant-client-roles", operations = {CREATE_USERS})
+    private String[] clientRoles;
+
+    // The groups to add each user to, in the format "<group1>;<group2>"
+    @QueryParamListFill(paramName = "join-groups", operations = {CREATE_USERS})
+    private String[] groups;
+
+    // Attributes to give each user in the format "<key1>:<value1>;<key2>:<value2>"
+    @QueryParamListFill(paramName = "attributes", operations = {CREATE_USERS})
+    private String[] attributes;
+
     // String representation of this configuration (cached here to not be computed
     // in runtime)
     private String toString = "DatasetConfig []";
@@ -384,6 +407,46 @@ public class DatasetConfig {
 
     public int getUsersPerUserPolicy() {
         return usersPerUserPolicy;
+    }
+
+    public Set<String> getRealmRolesSet() {
+        var set = new HashSet<String>();
+        for (var role:realmRoles) {
+            set.add(role);
+        }
+        return set;
+    }
+
+    public Map<String,Set<String>> getClientRoles() {
+        var result = new HashMap<String,Set<String>>();
+        for (var pair:this.clientRoles) {
+            var cr = pair.split(":");
+            if (!result.containsKey(cr[0])) {
+                result.put(cr[0], new HashSet<>());
+            }
+            result.get(cr[0]).add(cr[1]);
+        }
+        return result;
+    }
+
+    public Set<String> getGroupsSet() {
+        var set = new HashSet<String>();
+        for (var group:groups) {
+            set.add(group);
+        }
+        return set;
+    }
+
+    public Map<String,List<String>> getAttributes() {
+        var result = new HashMap<String,List<String>>();
+        for (var pair:this.attributes) {
+            var attr = pair.split(":");
+            if (!result.containsKey(attr[0])) {
+                result.put(attr[0], new ArrayList<>());
+            }
+            result.get(attr[0]).add(attr[1]);
+        }
+        return result;
     }
 
     @Override

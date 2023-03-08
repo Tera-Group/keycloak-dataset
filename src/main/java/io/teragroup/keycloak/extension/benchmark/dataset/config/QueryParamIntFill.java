@@ -23,10 +23,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.CREATE_CLIENTS;
-import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.CREATE_REALMS;
-import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.CREATE_USERS;
-
 /**
  * @author <a href="mailto:mposolda@redhat.com">Marek Posolda</a>
  */

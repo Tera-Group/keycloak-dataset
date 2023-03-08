@@ -92,6 +92,31 @@ public class ConfigUtil {
                 }
                 toString.append("\n " + qpfInt.paramName() + ": " + val);
             }
+
+            QueryParamListFill qpfList = f.getAnnotation(QueryParamListFill.class);
+            if (qpfList != null) {
+                boolean applicable = Arrays.asList(qpfList.operations()).contains(operation);
+                if (!applicable)
+                    continue;
+
+                String valStr = uriInfo.getQueryParameters().getFirst(qpfList.paramName());
+                String[] val;
+                if (valStr == null) {
+                    if (qpfList.required()) {
+                        throw new DatasetException("Required parameter '" + qpfList.paramName() + "' missing");
+                    }
+                    val = qpfList.defaultValue();
+                } else {
+                    val = valStr.split(";");
+                }
+                f.setAccessible(true);
+                try {
+                    f.set(config, val);
+                } catch (Exception e) {
+                    throw new DatasetException("Failed to fill the field '" + qpfList.paramName() + "'", e);
+                }
+                toString.append("\n " + qpfList.paramName() + ": " + val);
+            }
         }
         toString.append("\n]");
         config.setToString(toString.toString());
