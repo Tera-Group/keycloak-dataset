@@ -30,6 +30,7 @@ import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOp
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.LAST_REALM;
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.LAST_USER;
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.REMOVE_REALMS;
+import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.REMOVE_USERS;
 
 import java.util.Map;
 import java.util.List;
@@ -57,23 +58,23 @@ public class DatasetConfig {
     private String realmPrefix;
 
     // Used if want to remove all realms with given prefix
-    @QueryParamFill(paramName = "remove-all", defaultValue = "false", operations = { REMOVE_REALMS })
+    @QueryParamFill(paramName = "remove-all", defaultValue = "false", operations = { REMOVE_REALMS, REMOVE_USERS })
     private String removeAll;
 
     // First index to remove included. For example if "first-to-remove" is 30 and
     // "last-to-remove" is 40, then realms "realm30", "realm31", ... , "realm39"
     // will be deleted
-    @QueryParamIntFill(paramName = "first-to-remove", defaultValue = -1, operations = { REMOVE_REALMS })
+    @QueryParamIntFill(paramName = "first-to-remove", defaultValue = -1, operations = { REMOVE_REALMS, REMOVE_USERS })
     private Integer firstToRemove;
 
     // Last index to remove excluded.
-    @QueryParamIntFill(paramName = "last-to-remove", defaultValue = -1, operations = { REMOVE_REALMS })
+    @QueryParamIntFill(paramName = "last-to-remove", defaultValue = -1, operations = { REMOVE_REALMS, REMOVE_USERS })
     private Integer lastToRemove;
 
     // Realm-name is required when creating many clients or users. The realm where
     // clients/users will be created must already exists
     @QueryParamFill(paramName = "realm-name", required = true, operations = { CREATE_CLIENTS, CREATE_USERS, LAST_CLIENT,
-            LAST_USER, CREATE_AUTHZ_CLIENT })
+            LAST_USER, CREATE_AUTHZ_CLIENT, REMOVE_USERS })
     private String realmName;
 
     // NOTE: Start index is not available as parameter as it will be "auto-detected"
@@ -192,7 +193,7 @@ public class DatasetConfig {
     // Transaction timeout used for transactions for creating objects
     @QueryParamIntFill(paramName = "transaction-timeout", defaultValue = 300, operations = { CREATE_REALMS,
             CREATE_CLIENTS, CREATE_USERS,
-            CREATE_EVENTS, CREATE_OFFLINE_SESSIONS, REMOVE_REALMS, CREATE_AUTHZ_CLIENT })
+            CREATE_EVENTS, CREATE_OFFLINE_SESSIONS, REMOVE_REALMS, REMOVE_USERS, CREATE_AUTHZ_CLIENT })
     private Integer transactionTimeoutInSeconds;
 
     // Count of users created in every transaction
@@ -203,7 +204,7 @@ public class DatasetConfig {
     // Count of worker threads concurrently creating entities
     @QueryParamIntFill(paramName = "threads-count", defaultValue = 5, operations = { CREATE_REALMS, CREATE_CLIENTS,
             CREATE_USERS,
-            CREATE_EVENTS, CREATE_OFFLINE_SESSIONS, REMOVE_REALMS, CREATE_AUTHZ_CLIENT })
+            CREATE_EVENTS, CREATE_OFFLINE_SESSIONS, REMOVE_REALMS, REMOVE_USERS, CREATE_AUTHZ_CLIENT })
     private Integer threadsCount;
 
     // Timeout for the whole task. If timeout expires, then the existing task may
@@ -213,7 +214,7 @@ public class DatasetConfig {
     // conflicts
     @QueryParamIntFill(paramName = "task-timeout", defaultValue = 3600, operations = { CREATE_REALMS, CREATE_CLIENTS,
             CREATE_USERS,
-            CREATE_EVENTS, CREATE_OFFLINE_SESSIONS, REMOVE_REALMS, CREATE_AUTHZ_CLIENT })
+            CREATE_EVENTS, CREATE_OFFLINE_SESSIONS, REMOVE_REALMS, REMOVE_USERS, CREATE_AUTHZ_CLIENT })
     private Integer taskTimeout;
 
     // The client id of a client to which data is going to be provisioned
@@ -238,19 +239,20 @@ public class DatasetConfig {
     private int usersPerUserPolicy;
 
     // The realm roles to grant each user in the format "<role1>;<role2>"
-    @QueryParamListFill(paramName = "grant-realm-roles", operations = {CREATE_USERS})
-    private String[] realmRoles;
+    @QueryParamListFill(paramName = "grant-realm-roles", operations = { CREATE_USERS })
+    private String[] grantRealmRoles;
 
-    // The client roles to grant each user in the format "<client1>:<role1>;<client2>:<role2>"
-    @QueryParamListFill(paramName = "grant-client-roles", operations = {CREATE_USERS})
-    private String[] clientRoles;
+    // The client roles to grant each user in the format
+    // "<client1>:<role1>;<client2>:<role2>"
+    @QueryParamListFill(paramName = "grant-client-roles", operations = { CREATE_USERS })
+    private String[] grantClientRoles;
 
     // The groups to add each user to, in the format "<group1>;<group2>"
-    @QueryParamListFill(paramName = "join-groups", operations = {CREATE_USERS})
-    private String[] groups;
+    @QueryParamListFill(paramName = "join-groups", operations = { CREATE_USERS })
+    private String[] joinGroups;
 
     // Attributes to give each user in the format "<key1>:<value1>;<key2>:<value2>"
-    @QueryParamListFill(paramName = "attributes", operations = {CREATE_USERS})
+    @QueryParamListFill(paramName = "attributes", operations = { CREATE_USERS })
     private String[] attributes;
 
     // String representation of this configuration (cached here to not be computed
@@ -411,15 +413,15 @@ public class DatasetConfig {
 
     public Set<String> getRealmRolesSet() {
         var set = new HashSet<String>();
-        for (var role:realmRoles) {
+        for (var role : grantRealmRoles) {
             set.add(role);
         }
         return set;
     }
 
-    public Map<String,Set<String>> getClientRoles() {
-        var result = new HashMap<String,Set<String>>();
-        for (var pair:this.clientRoles) {
+    public Map<String, Set<String>> getGrantClientRoles() {
+        var result = new HashMap<String, Set<String>>();
+        for (var pair : this.grantClientRoles) {
             var cr = pair.split(":");
             if (!result.containsKey(cr[0])) {
                 result.put(cr[0], new HashSet<>());
@@ -431,15 +433,15 @@ public class DatasetConfig {
 
     public Set<String> getGroupsSet() {
         var set = new HashSet<String>();
-        for (var group:groups) {
+        for (var group : joinGroups) {
             set.add(group);
         }
         return set;
     }
 
-    public Map<String,List<String>> getAttributes() {
-        var result = new HashMap<String,List<String>>();
-        for (var pair:this.attributes) {
+    public Map<String, List<String>> getAttributes() {
+        var result = new HashMap<String, List<String>>();
+        for (var pair : this.attributes) {
             var attr = pair.split(":");
             if (!result.containsKey(attr[0])) {
                 result.put(attr[0], new ArrayList<>());

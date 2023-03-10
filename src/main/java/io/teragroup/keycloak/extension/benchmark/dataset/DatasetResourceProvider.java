@@ -1207,36 +1207,44 @@ public class DatasetResourceProvider implements RealmResourceProvider {
             user.credentialManager().updateCredential(UserCredentialModel.password(password, false));
 
             // Detect which roles we assign to the user
-            int roleIndexStartForCurrentUser = (i * config.getRealmRolesPerUser());
-            for (int j = roleIndexStartForCurrentUser; j < roleIndexStartForCurrentUser
-                    + config.getRealmRolesPerUser(); j++) {
-                int roleIndex = j % context.getRealmRoles().size();
-                user.grantRole(context.getRealmRoles().get(roleIndex));
+            int realmRolesTotal = context.getRealmRoles().size();
+            if (realmRolesTotal > 0) {
+                int roleIndexStartForCurrentUser = (i * config.getRealmRolesPerUser());
+                for (int j = roleIndexStartForCurrentUser; j < roleIndexStartForCurrentUser
+                        + config.getRealmRolesPerUser(); j++) {
+                    int roleIndex = j % realmRolesTotal;
+                    user.grantRole(context.getRealmRoles().get(roleIndex));
 
-                logger.tracef("Assigned role %s to the user %s", context.getRealmRoles().get(roleIndex).getName(),
-                        user.getUsername());
+                    logger.tracef("Assigned role %s to the user %s", context.getRealmRoles().get(roleIndex).getName(),
+                            user.getUsername());
+                }
             }
 
             int clientRolesTotal = context.getClientRoles().size();
-            int clientRoleIndexStartForCurrentUser = (i * config.getClientRolesPerUser());
-            for (int j = clientRoleIndexStartForCurrentUser; j < clientRoleIndexStartForCurrentUser
-                    + config.getClientRolesPerUser(); j++) {
-                int roleIndex = j % clientRolesTotal;
-                user.grantRole(context.getClientRoles().get(roleIndex));
+            if (clientRolesTotal > 0) {
+                int clientRoleIndexStartForCurrentUser = (i * config.getClientRolesPerUser());
+                for (int j = clientRoleIndexStartForCurrentUser; j < clientRoleIndexStartForCurrentUser
+                        + config.getClientRolesPerUser(); j++) {
+                    int roleIndex = j % clientRolesTotal;
+                    user.grantRole(context.getClientRoles().get(roleIndex));
 
-                logger.tracef("Assigned role %s to the user %s", context.getClientRoles().get(roleIndex).getName(),
-                        user.getUsername());
+                    logger.tracef("Assigned role %s to the user %s", context.getClientRoles().get(roleIndex).getName(),
+                            user.getUsername());
+                }
             }
 
             // Detect which groups we assign to the user
             int groupIndexStartForCurrentUser = (i * config.getGroupsPerUser());
-            for (int j = groupIndexStartForCurrentUser; j < groupIndexStartForCurrentUser
-                    + config.getGroupsPerUser(); j++) {
-                int groupIndex = j % context.getGroups().size();
-                user.joinGroup(context.getGroups().get(groupIndex));
+            int groupsTotal = context.getGroups().size();
+            if (groupsTotal > 0) {
+                for (int j = groupIndexStartForCurrentUser; j < groupIndexStartForCurrentUser
+                        + config.getGroupsPerUser(); j++) {
+                    int groupIndex = j % groupsTotal;
+                    user.joinGroup(context.getGroups().get(groupIndex));
 
-                logger.tracef("Assigned group %s to the user %s", context.getGroups().get(groupIndex).getName(),
-                        user.getUsername());
+                    logger.tracef("Assigned group %s to the user %s", context.getGroups().get(groupIndex).getName(),
+                            user.getUsername());
+                }
             }
 
             // grant named realm roles
@@ -1348,7 +1356,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
                             .collect(Collectors.toList()));
 
             // fetch named client roles
-            var clientRoles = config.getClientRoles();
+            var clientRoles = config.getGrantClientRoles();
             var clientsMap = realm.getClientsStream()
                     .filter(c -> clientRoles.containsKey(c.getName()))
                     .collect(Collectors.toMap(ClientModel::getName, Function.identity()));

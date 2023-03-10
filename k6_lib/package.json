@@ -1,0 +1,51 @@
+{
+  "name": "k6-keycloak-dataset",
+  "version": "0.1.0",
+  "description": "Create test data for keycloak during k6 setup",
+  "main": "src/index.js",
+  "scripts": {
+    "build": "webpack",
+    "du": "docker-compose -f ../docker-compose.yml up --wait",
+    "dd": "docker-compose -f ../docker-compose.yml down",
+    "pretest": "npm run build && npm run dd && npm run du",
+    "test": "k6 run tests/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Tera-Group/keycloak-testdata.git"
+  },
+  "keywords": [
+    "k6",
+    "keycloak"
+  ],
+  "devDependencies": {
+    "@babel/core": "^7.21.0",
+    "@babel/plugin-proposal-class-properties": "^7.18.6",
+    "@babel/plugin-proposal-object-rest-spread": "^7.20.7",
+    "@babel/plugin-proposal-private-methods": "^7.18.6",
+    "@babel/plugin-proposal-private-property-in-object": "^7.21.0",
+    "@babel/plugin-transform-block-scoping": "^7.21.0",
+    "@babel/preset-env": "^7.20.2",
+    "@babel/preset-typescript": "^7.21.0",
+    "@types/k6": "^0.37.0",
+    "@types/uuid": "^3.4.0",
+    "@types/webpack": "^5.28.0",
+    "babel-loader": "^8.0.6",
+    "chai": "4.3.4",
+    "clean-webpack-plugin": "^4.0.0",
+    "copy-webpack-plugin": "^10.2.4",
+    "terser-webpack-plugin": "^5.3.1",
+    "ts-loader": "^9.4.2",
+    "typescript": "^4.6.3",
+    "uuid": "^3.4.0",
+    "webpack": "^5.72.0",
+    "webpack-cli": "^4.9.2",
+    "webpack-glob-entries": "^1.0.1"
+  },
+  "author": "Khoi Pham",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Tera-Group/keycloak-testdata/issues"
+  },
+  "homepage": "https://github.com/Tera-Group/keycloak-testdata#readme"
+}
