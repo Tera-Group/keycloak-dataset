@@ -40,7 +40,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.ws.rs.DELETE;
+import javax.ws.rs.ForbiddenException;
 import javax.ws.rs.GET;
+import javax.ws.rs.NotAuthorizedException;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
@@ -74,6 +76,8 @@ import org.keycloak.protocol.oidc.OIDCAdvancedConfigWrapper;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
 import org.keycloak.representations.idm.ClientRepresentation;
 import org.keycloak.representations.idm.RealmRepresentation;
+import org.keycloak.services.managers.AppAuthManager;
+import org.keycloak.services.managers.AuthenticationManager;
 import org.keycloak.services.managers.ClientManager;
 import org.keycloak.services.managers.RealmManager;
 import org.keycloak.services.managers.UserSessionManager;
@@ -88,12 +92,14 @@ public class DatasetResourceProvider implements RealmResourceProvider {
 
     // Ideally don't use this session to run any DB transactions
     protected final KeycloakSession baseSession;
+    private final AuthenticationManager.AuthResult auth;
 
     protected UriInfo uriInfo;
 
     public DatasetResourceProvider(KeycloakSession session) {
         this.baseSession = session;
         this.uriInfo = session.getContext().getUri();
+        this.auth = new AppAuthManager.BearerTokenAuthenticator(session).authenticate();
     }
 
     @Override
@@ -107,6 +113,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response createRealms() {
+        checkAccess();
         boolean started = false;
         boolean taskAdded = false;
         try {
@@ -255,6 +262,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response createClients() {
+        checkAccess();
         boolean started = false;
         boolean taskAdded = false;
         try {
@@ -356,6 +364,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response createUsers() {
+        checkAccess();
         boolean started = false;
         boolean taskAdded = false;
         try {
@@ -462,6 +471,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response createEvents() {
+        checkAccess();
         boolean started = false;
         boolean taskAdded = false;
         try {
@@ -568,6 +578,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response createOfflineSessions() {
+        checkAccess();
         boolean started = false;
         boolean taskAdded = false;
         try {
@@ -678,6 +689,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response removeRealms() {
+        checkAccess();
         boolean started = false;
         boolean taskAdded = false;
         try {
@@ -791,6 +803,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response removeUsers() {
+        checkAccess();
         boolean started = false;
         boolean taskAdded = false;
         try {
@@ -905,6 +918,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response getStatus() {
+        checkAccess();
         TaskManager taskManager = new TaskManager(baseSession);
         Task task = taskManager.getExistingTask();
 
@@ -920,6 +934,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response getStatusCompleted() {
+        checkAccess();
         TaskManager taskManager = new TaskManager(baseSession);
         Task task = taskManager.getCompletedTask();
 
@@ -935,6 +950,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response clearStatusCompleted() {
+        checkAccess();
         TaskManager taskManager = new TaskManager(baseSession);
         taskManager.deleteCompletedTask();
         return Response.noContent().build();
@@ -945,6 +961,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response lastRealm() {
+        checkAccess();
         try {
             DatasetConfig config = ConfigUtil.createConfigFromQueryParams(uriInfo, LAST_REALM);
             logger.infof("Request to obtain last realm. Configuration: %s", config.toString());
@@ -967,6 +984,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response lastClient() {
+        checkAccess();
         try {
             DatasetConfig config = ConfigUtil.createConfigFromQueryParams(uriInfo, LAST_CLIENT);
             logger.infof("Request to obtain last client. Configuration: %s", config.toString());
@@ -995,6 +1013,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     @NoCache
     @Produces(MediaType.APPLICATION_JSON)
     public Response lastUser() {
+        checkAccess();
         try {
             DatasetConfig config = ConfigUtil.createConfigFromQueryParams(uriInfo, LAST_USER);
             logger.infof("Request to obtain last user. Configuration: %s", config.toString());
@@ -1020,6 +1039,7 @@ public class DatasetResourceProvider implements RealmResourceProvider {
 
     @Path("/authz")
     public AuthorizationProvisioner authz() {
+        checkAccess();
         return new AuthorizationProvisioner(baseSession);
     }
 
@@ -1367,6 +1387,20 @@ public class DatasetResourceProvider implements RealmResourceProvider {
     protected void success() {
         KeycloakModelUtils.runJobInTransaction(baseSession.getKeycloakSessionFactory(),
                 session -> new TaskManager(session).removeExistingTask(true));
+    }
+
+    /**
+     * checkAccess ensures that only users with
+     * "keycloak-dataset.uma_protection"
+     * role can access this resource
+     */
+    private void checkAccess() {
+        if (auth == null) {
+            throw new NotAuthorizedException("Bearer");
+        } else if (auth.getToken().getRealmAccess() == null
+                || !auth.getToken().getResourceAccess().get("keycloak-dataset").isUserInRole("uma_protection")) {
+            throw new ForbiddenException("Does not have keycloak-dataset.uma_protection role");
+        }
     }
 
 }

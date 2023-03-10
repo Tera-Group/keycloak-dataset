@@ -8,9 +8,31 @@ import { Task, TaskResponse } from "./responses";
 
 export class DatasetClient {
   private baseURL: string;
+  private accessToken: string;
 
-  constructor(baseURL: string) {
+  constructor(baseURL: string, accessToken: string) {
     this.baseURL = baseURL;
+    this.accessToken = accessToken;
+  }
+
+  public static authenticate(baseURL: string, clientSecret: string) {
+    let res = http.get(
+      `${baseURL}/realms/master/.well-known/uma2-configuration`
+    );
+    const discovery = res.json() as { token_endpoint: string };
+    res = http.post(
+      discovery["token_endpoint"],
+      {
+        grant_type: "client_credentials",
+        client_id: "keycloak-dataset",
+        client_secret: clientSecret,
+      },
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+    return new DatasetClient(
+      baseURL,
+      (res.json() as { access_token: string })["access_token"]
+    );
   }
 
   private url(
@@ -42,7 +64,9 @@ export class DatasetClient {
     path: string,
     queryParams?: Record<string, string | boolean | number>
   ) {
-    const res = http.request(method, this.url(path, queryParams));
+    const res = http.request(method, this.url(path, queryParams), null, {
+      headers: { Authorization: "Bearer " + this.accessToken },
+    });
     console.log(`DatasetClient: ${method} ${path} - ${res.status}`);
     this.handleError(res);
     return res;

@@ -7,13 +7,24 @@ import { Client, KeycloakAdminClient } from "../build/index.js";
 
 export function clientTestSuite(data) {
   const baseURL = "http://localhost:9292";
-  const client = new Client(baseURL);
   const realmName = "my-realm";
   const adminClient = KeycloakAdminClient.authenticate(
     baseURL,
     "admin",
     "admin"
   );
+
+  adminClient.createClient("master", {
+    id: "keycloak-dataset",
+    name: "keycloak-dataset",
+    enabled: true,
+    serviceAccountsEnabled: true,
+    authorizationServicesEnabled: true,
+    publicClient: false,
+    clientAuthenticatorType: "client-secret",
+    secret: "keycloak-dataset",
+  });
+  const client = Client.authenticate(baseURL, "keycloak-dataset");
 
   describe("createUsers", () => {
     adminClient.createRealm({
