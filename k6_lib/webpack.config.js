@@ -10,7 +10,6 @@ module.exports = {
     // "k6-keycloak-dataset": path.resolve(__dirname, "./src/index.ts"),
     // jslib.k6.io expects us to expose an `index.js` file
     index: path.resolve(__dirname, "./src/index.ts"),
-    // admin: path.resolve(__dirname, "./src/admin/index.ts"),
   },
   output: {
     path: path.resolve(__dirname, "build"),
@@ -27,11 +26,6 @@ module.exports = {
         use: "ts-loader",
         exclude: /node_modules/,
       },
-      //   {
-      //     test: /\.ts$/,
-      //     use: "babel-loader",
-      //     exclude: /node_modules/,
-      //   },
     ],
   },
   target: "web",
