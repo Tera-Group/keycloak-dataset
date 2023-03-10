@@ -82,12 +82,14 @@ export type CreateUsersOptions = {
 
 export type RemoveUsersOptions = {
   realmName?: string;
+  userPrefix?: string;
   removeAll?: boolean;
   firstToRemove?: number;
   lastToRemove?: number;
   transactionTimeoutInSeconds?: number;
   threadsCount?: number;
   taskTimeout?: number;
+  usersPerTransaction?: number;
 };
 
 export type GetRunningJobStatusOptions = {};

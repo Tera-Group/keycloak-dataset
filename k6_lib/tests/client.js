@@ -124,4 +124,38 @@ export function clientTestSuite(data) {
       "group2",
     ]);
   });
+
+  describe("removeUsers", () => {
+    client.waitForTaskToComplete(
+      client.removeUsers({
+        realmName,
+        userPrefix: "test-user",
+        firstToRemove: 100,
+        lastToRemove: 200,
+      })
+    );
+
+    expect(adminClient.getUsersCount(realmName)).to.equal(900);
+
+    client.waitForTaskToComplete(
+      client.createUsers({
+        count: 200,
+        userPrefix: "test2-user",
+        realmName,
+      })
+    );
+
+    expect(adminClient.getUsersCount(realmName)).to.equal(1100);
+
+    // ensure it is only removing users with correct prefix
+    client.waitForTaskToComplete(
+      client.removeUsers({
+        realmName,
+        userPrefix: "test-user",
+        removeAll: true,
+      })
+    );
+
+    expect(adminClient.getUsersCount(realmName)).to.equal(200);
+  });
 }

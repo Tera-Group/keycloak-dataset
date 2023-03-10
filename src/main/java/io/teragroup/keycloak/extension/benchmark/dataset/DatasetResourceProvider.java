@@ -30,15 +30,14 @@ import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOp
 import static io.teragroup.keycloak.extension.benchmark.dataset.config.DatasetOperation.REMOVE_USERS;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -797,6 +796,10 @@ public class DatasetResourceProvider implements RealmResourceProvider {
         try {
             DatasetConfig config = ConfigUtil.createConfigFromQueryParams(uriInfo, REMOVE_USERS);
 
+            if (config.getUserPrefix() == null) {
+                throw new DatasetException("user-prefix must be specified");
+            }
+
             if (!config.getRemoveAll() && (config.getFirstToRemove() == -1 || config.getLastToRemove() == -1)) {
                 throw new DatasetException(
                         "Either remove-all need to be true OR both first-to-remove and last-to-remove need to be filled");
@@ -847,87 +850,48 @@ public class DatasetResourceProvider implements RealmResourceProvider {
         }
     }
 
-    /**
-     * find insertion point for user with given index, similar to how sort.Search
-     * works in Golang.
-     * This should work regardless of whether said index could be found in the users
-     * list or not.
-     * 
-     * @param users     list of users
-     * @param config
-     * @param userIndex index to search
-     * @return insertion point
-     */
-    private int findUserInsertionPoint(List<UserModel> users, DatasetConfig config, int userIndex) {
-        var prefixLength = config.getUserPrefix().length();
-        var ind = Collections.binarySearch(
-                users.stream()
-                        .map(u -> Integer.parseInt(u.getUsername().substring(prefixLength)))
-                        .collect(Collectors.toList()),
-                userIndex, Comparator.naturalOrder());
-        if (ind < 0) {
-            return -1 - ind;
-        }
-        return ind;
-    }
-
-    private void addUserDeletionTasks(RealmContext context, Task task, DatasetConfig config, ExecutorHelper executor) {
-        RealmModel realm = context.getRealm();
-        var usersCount = baseSession.users().getUsersCount(realm);
-        Map<String, String> params = null;
-        var prefixLength = config.getUserPrefix().length();
-        Collection<Integer> deleteCounts = Collections.synchronizedCollection(new ArrayList<>());
-        for (int i = 0; i < usersCount; i += config.getUsersPerTransaction()) {
-            final int usersStartIndex = i;
-            final int endIndex = Math.min(usersStartIndex + config.getUsersPerTransaction(), usersCount);
-
-            logger.tracef("usersStartIndex: %d, usersEndIndex: %d", usersStartIndex, endIndex);
-
-            // Run this concurrently with multiple threads
-            executor.addTaskRunningInTransaction(session -> {
-                var usersStream = session.getProvider(UserProvider.class)
-                        .searchForUserStream(realm, params, usersStartIndex, usersCount)
-                        .filter(user -> user.getUsername().startsWith(config.getUserPrefix()));
-
-                List<UserModel> users = null;
-                int deleteCount = 0;
-                if (config.getRemoveAll()) {
-                    users = usersStream.collect(Collectors.toList());
-                } else {
-                    users = usersStream.sorted((user1, user2) -> {
-                        String name1 = user1.getUsername().substring(prefixLength);
-                        String name2 = user2.getUsername().substring(prefixLength);
-                        return Integer.parseInt(name1) - Integer.parseInt(name2);
-                    }).collect(Collectors.toList());
-                    users = users.subList(
-                            findUserInsertionPoint(users, config, config.getFirstToRemove()),
-                            findUserInsertionPoint(users, config, config.getLastToRemove()));
-                }
-
-                for (var user : users) {
-                    if (session.users().removeUser(realm, user)) {
-                        deleteCount += 1;
-                    } else {
-                        logger.warnf("User %s did not exist", user.getUsername());
-                    }
-                }
-
-                deleteCounts.add(deleteCount);
-                if (((endIndex) / config.getUsersPerTransaction()) % 20 == 0) {
-                    task.info(logger, "Deleted %d users in realm %s",
-                            deleteCounts.stream().reduce(0, Integer::sum),
-                            context.getRealm().getName());
-                }
-            });
-        }
-    }
-
     private void removeUsersImpl(RealmContext context, Task task, DatasetConfig config) {
         ExecutorHelper executor = new ExecutorHelper(
                 config.getThreadsCount(), baseSession.getKeycloakSessionFactory(), config);
+        RealmModel realm = context.getRealm();
+        Map<String, String> params = new HashMap<>();
+        params.put(UserModel.USERNAME, config.getUserPrefix());
         try {
-            addUserDeletionTasks(context, task, config, executor);
+            final List<String> userIds = new ArrayList<>();
+            KeycloakModelUtils.runJobInTransactionWithTimeout(baseSession.getKeycloakSessionFactory(), session -> {
+                Stream<UserModel> userStream;
+                if (config.getRemoveAll()) {
+                    userStream = session.getProvider(UserProvider.class).searchForUserStream(realm, params);
+                } else {
+                    userStream = session.getProvider(UserProvider.class).searchForUserStream(realm, params,
+                            config.getFirstToRemove(), config.getLastToRemove() - config.getFirstToRemove());
+                }
+                task.info(logger, "Will obtain list of all users to remove");
+
+                // Don't cache users as we are just about to remove them
+                userIds.addAll(userStream
+                        .map(UserModel::getId)
+                        .collect(Collectors.toList()));
+
+                task.info(logger, "Will delete %d users.", userIds.size());
+            }, config.getTransactionTimeoutInSeconds());
+
+            for (int i = 0; i < userIds.size(); i += config.getUsersPerTransaction()) {
+                final int usersStartIndex = i;
+                final int endIndex = Math.min(usersStartIndex + config.getUsersPerTransaction(), userIds.size());
+                executor.addTaskRunningInTransaction(session -> {
+                    for (int j = usersStartIndex; j < endIndex; j++) {
+                        var user = session.getProvider(UserProvider.class).getUserById(realm, userIds.get(j));
+                        if (!session.users().removeUser(realm, user)) {
+                            logger.warnf("User %s did not exist", user.getUsername());
+                        }
+                    }
+                });
+            }
+
             executor.waitForAllToFinish();
+
+            task.info(logger, "Deleted all %d users", userIds.size());
             success();
         } catch (Exception ex) {
             logException(ex);

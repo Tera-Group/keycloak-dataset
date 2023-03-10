@@ -154,7 +154,7 @@ public class DatasetConfig {
 
     // Prefix for newly created users
     @QueryParamFill(paramName = "user-prefix", defaultValue = "user-", operations = { CREATE_REALMS, CREATE_USERS,
-            CREATE_OFFLINE_SESSIONS, LAST_USER, CREATE_AUTHZ_CLIENT })
+            CREATE_OFFLINE_SESSIONS, LAST_USER, CREATE_AUTHZ_CLIENT, REMOVE_USERS })
     private String userPrefix;
 
     // Count of users to be created in every realm (In case of CREATE_REALMS)
@@ -198,7 +198,7 @@ public class DatasetConfig {
 
     // Count of users created in every transaction
     @QueryParamIntFill(paramName = "users-per-transaction", defaultValue = 10, operations = { CREATE_REALMS,
-            CREATE_USERS })
+            CREATE_USERS, REMOVE_USERS })
     private Integer usersPerTransaction;
 
     // Count of worker threads concurrently creating entities
