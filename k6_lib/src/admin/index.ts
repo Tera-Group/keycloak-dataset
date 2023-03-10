@@ -43,7 +43,6 @@ export class KeycloakAdminClient {
   }
 
   private request(method: string, path: string, jsonObj?: any) {
-    console.log(`KeycloakAdminClient: ${method} ${path}`);
     const res = http.request(
       method,
       this.baseURL + path,
@@ -52,6 +51,7 @@ export class KeycloakAdminClient {
         headers: this.headers(!!jsonObj),
       }
     );
+    console.log(`KeycloakAdminClient: ${method} ${path} - ${res.status}`);
     this.handleError(res);
     return res;
   }
@@ -62,10 +62,28 @@ export class KeycloakAdminClient {
   }
 
   public createClient(realm: string, client: ClientRepresentation) {
-    const res = this.request("POST", `/admin/realms/${realm}/clients`, client);
-    return res.json() as {
-      id: string;
-    };
+    this.request("POST", `/admin/realms/${realm}/clients`, client);
+    return null;
+  }
+
+  public listClients(realm: string, query?: ClientQuery) {
+    const res = this.request(
+      "GET",
+      `/admin/realms/${realm}/clients${this.encodeQuery(query)}`
+    );
+    return res.json() as ClientRepresentation[];
+  }
+
+  public fetchClientsByClientId(realm: string, clientIds: string[]) {
+    const clients = this.listClients(realm);
+    const result: { [key: string]: ClientRepresentation } = {};
+    const idSet = new Set(clientIds);
+    for (let client of clients) {
+      if (idSet.has(client.clientId as string)) {
+        result[client.clientId as string] = client;
+      }
+    }
+    return result;
   }
 
   public createClientRole(
@@ -73,14 +91,12 @@ export class KeycloakAdminClient {
     clientId: string,
     role: RoleRepresentation
   ) {
-    const res = this.request(
+    this.request(
       "POST",
       `/admin/realms/${realm}/clients/${clientId}/roles`,
       role
     );
-    return res.json() as {
-      roleName: string;
-    };
+    return null;
   }
 
   public listClientRoles(realm: string, clientId: string) {
@@ -91,7 +107,7 @@ export class KeycloakAdminClient {
     return res.json() as RoleRepresentation[];
   }
 
-  public addClientRoleToUser(
+  public addClientRolesToUser(
     realm: string,
     userId: string,
     clientId: string,
@@ -105,18 +121,46 @@ export class KeycloakAdminClient {
     return null;
   }
 
+  public listUserClientRoles(realm: string, userId: string, clientId: string) {
+    const res = this.request(
+      "GET",
+      `/admin/realms/${realm}/users/${userId}/role-mappings/clients/${clientId}`
+    );
+    return res.json() as RoleRepresentation[];
+  }
+
+  public listUserRealmRoles(realm: string, userId: string) {
+    const res = this.request(
+      "GET",
+      `/admin/realms/${realm}/users/${userId}/role-mappings/realm`
+    );
+    return res.json() as RoleRepresentation[];
+  }
+
+  public listUserGroups(realm: string, userId: string, query?: GroupQuery) {
+    const res = this.request(
+      "GET",
+      `/admin/realms/${realm}/users/${userId}/groups${this.encodeQuery(query)}`
+    );
+    return res.json() as GroupRepresentation[];
+  }
+
   public createRealmRole(realm: string, role: RoleRepresentation) {
-    const res = this.request("POST", `/admin/realms/${realm}/roles`, role);
-    return res.json() as {
-      roleName: string;
-    };
+    this.request("POST", `/admin/realms/${realm}/roles`, role);
+    return null;
   }
 
   public createGroup(realm: string, group: GroupRepresentation) {
-    const res = this.request("POST", `/admin/realms/${realm}/groups`, group);
-    return res.json() as {
-      id: string;
-    };
+    this.request("POST", `/admin/realms/${realm}/groups`, group);
+    return null;
+  }
+
+  public listGroups(realm: string, query?: GroupQuery) {
+    const res = this.request(
+      "GET",
+      `/admin/realms/${realm}/groups${this.encodeQuery(query)}`
+    );
+    return res.json() as GroupRepresentation[];
   }
 
   public getUsersCount(realm: string, query?: UserQuery) {
@@ -156,6 +200,24 @@ export interface UserQuery {
   search?: string;
   username?: string;
   exact?: boolean;
+  [key: string]: string | number | undefined | boolean;
+}
+
+export interface ClientQuery {
+  clientId?: string;
+  first?: number;
+  max?: number;
+  q?: string;
+  search?: boolean;
+  viewableOnly?: boolean;
+  [key: string]: string | number | undefined | boolean;
+}
+
+export interface GroupQuery {
+  briefRepresentation?: boolean;
+  first?: number;
+  max?: number;
+  search?: string;
   [key: string]: string | number | undefined | boolean;
 }
 

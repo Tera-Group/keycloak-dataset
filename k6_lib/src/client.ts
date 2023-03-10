@@ -6,7 +6,7 @@ import * as options from "./options";
 import { DatasetServiceError } from "./errors";
 import { Task, TaskResponse } from "./responses";
 
-export class Client {
+export class DatasetClient {
   private baseURL: string;
 
   constructor(baseURL: string) {
@@ -37,88 +37,84 @@ export class Client {
     }
   }
 
-  public createRealms(opts?: options.CreateRealmsOptions) {
-    const res = http.request("GET", this.url("/create-realms", opts));
+  private request(
+    method: string,
+    path: string,
+    queryParams?: Record<string, string | boolean | number>
+  ) {
+    const res = http.request(method, this.url(path, queryParams));
+    console.log(`DatasetClient: ${method} ${path} - ${res.status}`);
     this.handleError(res);
+    return res;
+  }
+
+  public createRealms(opts?: options.CreateRealmsOptions) {
+    const res = this.request("GET", "/create-realms", opts);
     return res.json() as TaskResponse;
   }
 
   public removeRealms(opts?: options.RemoveRealmsOptions) {
-    const res = http.request("GET", this.url("/remove-realms", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/remove-realms", opts);
     return res.json() as TaskResponse;
   }
 
   public createClients(opts?: options.CreateClientsOptions) {
-    const res = http.request("GET", this.url("/create-clients", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/create-clients", opts);
     return res.json() as TaskResponse;
   }
 
   public createUsers(opts?: options.CreateUsersOptions) {
-    const res = http.request("GET", this.url("/create-users", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/create-users", opts);
     return res.json() as TaskResponse;
   }
 
   public removeUsers(opts?: options.RemoveUsersOptions) {
-    const res = http.request("GET", this.url("/remove-users", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/remove-users", opts);
     return res.json() as TaskResponse;
   }
 
   public createEvents(opts?: options.CreateEventsOptions) {
-    const res = http.request("GET", this.url("/create-events", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/create-events", opts);
     return res.json() as TaskResponse;
   }
 
   public createOfflineSessions(opts?: options.CreateOfflineSessionsOptions) {
-    const res = http.request("GET", this.url("/create-offline-sessions", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/create-offline-sessions", opts);
     return res.json() as TaskResponse;
   }
 
   public getRunningJobStatus(opts?: options.GetRunningJobStatusOptions) {
-    const res = http.request("GET", this.url("/status", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/status", opts);
     return res.json() as TaskResponse;
   }
 
   public getCompletedJobStatus(opts?: options.GetCompletedJobStatusOptions) {
-    const res = http.request("GET", this.url("/status-completed", opts));
-    this.handleError(res);
-    console.log({ body: res.body, status: res.status });
+    const res = this.request("GET", "/status-completed", opts);
     return res.json() as TaskResponse;
   }
 
   public clearCompletedJob(opts?: options.ClearCompletedJobOptions) {
-    const res = http.request("DELETE", this.url("/status-completed", opts));
-    this.handleError(res);
+    this.request("DELETE", "/status-completed", opts);
     return null;
   }
 
   public getLastRealm(opts?: options.GetLastRealmOptions) {
-    const res = http.request("GET", this.url("/last-realm", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/last-realm", opts);
     return res.json() as TaskResponse;
   }
 
   public getLastClient(opts?: options.GetLastClientOptions) {
-    const res = http.request("GET", this.url("/last-client", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/last-client", opts);
     return res.json() as TaskResponse;
   }
 
   public getLastUser(opts?: options.GetLastUserOptions) {
-    const res = http.request("GET", this.url("/last-user", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/last-user", opts);
     return res.json() as TaskResponse;
   }
 
   public createAuthzResources(opts?: options.CreateAuthzResources) {
-    const res = http.request("GET", this.url("/authz/create-resources", opts));
-    this.handleError(res);
+    const res = this.request("GET", "/authz/create-resources", opts);
     return res.json() as TaskResponse;
   }
 
