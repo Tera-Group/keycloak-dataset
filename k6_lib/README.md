@@ -18,7 +18,7 @@ This library manages test data for benchmark purpose. It consists of a Keycloak 
 2. Use the k6 library in your load test scripts
 
    ```javascript
-   import { DatasetClient } from "https://cdn.jsdelivr.net/npm/keycloak-dataset@20.0.0/dist/index.js";
+   import { DatasetClient } from "https://cdn.jsdelivr.net/npm/@teravn/k6-keycloak-dataset@20.0.0/dist/index.js";
 
    const client = DatasetClient.authenticate(baseURL, __ENV.KEYCLOAK_DATASET_CLIENT_SECRET);
 

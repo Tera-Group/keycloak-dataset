@@ -12,7 +12,7 @@ module.exports = {
     index: path.resolve(__dirname, "./src/index.ts"),
   },
   output: {
-    path: path.resolve(__dirname, "build"),
+    path: path.resolve(__dirname, "dist"),
     libraryTarget: "commonjs",
     filename: "[name].js",
   },

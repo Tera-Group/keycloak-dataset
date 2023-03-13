@@ -3,7 +3,7 @@ import {
   expect,
 } from "https://jslib.k6.io/k6chaijs/4.3.4.1/index.js";
 
-import { Client, KeycloakAdminClient } from "../build/index.js";
+import { DatasetClient, KeycloakAdminClient } from "../dist/index.js";
 
 export function clientTestSuite(data) {
   const baseURL = "http://localhost:9292";
@@ -24,7 +24,7 @@ export function clientTestSuite(data) {
     clientAuthenticatorType: "client-secret",
     secret: "keycloak-dataset",
   });
-  const client = Client.authenticate(baseURL, "keycloak-dataset");
+  const client = DatasetClient.authenticate(baseURL, "keycloak-dataset");
 
   describe("createUsers", () => {
     adminClient.createRealm({

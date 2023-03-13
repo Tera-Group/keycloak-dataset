@@ -7,10 +7,7 @@ export type Task = {
 
 export type TaskResponse = {
   error: string;
-
   status: string;
-
   task?: Task;
-
   "task-status-url": string;
 };
