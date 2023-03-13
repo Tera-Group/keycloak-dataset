@@ -67,7 +67,7 @@ export class DatasetClient {
     const res = http.request(method, this.url(path, queryParams), null, {
       headers: { Authorization: "Bearer " + this.accessToken },
     });
-    console.log(`DatasetClient: ${method} ${path} - ${res.status}`);
+    console.debug(`[DatasetClient] ${method} ${path} - ${res.status}`);
     this.handleError(res);
     return res;
   }
@@ -184,6 +184,7 @@ export class DatasetClient {
           throw new Error(`task failed: ${JSON.stringify(completedJob.task)}`);
         }
         this.clearCompletedJob();
+        console.log(`[DatasetClient] task completed: ${expectingTask}`)
         return completedJob.task;
       } else {
         throw new Error(`unexpeted job status ${JSON.stringify(job.status)}`);

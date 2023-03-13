@@ -51,7 +51,7 @@ export class KeycloakAdminClient {
         headers: this.headers(!!jsonObj),
       }
     );
-    console.log(`KeycloakAdminClient: ${method} ${path} - ${res.status}`);
+    console.debug(`[KeycloakAdminClient] ${method} ${path} - ${res.status}`);
     this.handleError(res);
     return res;
   }
