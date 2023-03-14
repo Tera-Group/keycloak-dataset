@@ -11,6 +11,12 @@ This library manages test data for benchmark purpose. It consists of a Keycloak 
    ${KC_HOME_DIR}/bin/kc.sh build
    ```
 
+2. Install the k6 library (you can then use webpack to bundle k6 scripts along with dependencies)
+
+   ```bash
+   npm i @teravn/k6-keycloak-dataset
+   ```
+
 ## Usage
 
 1. In realm master, create a confidential client named "keycloak-dataset" with
@@ -18,11 +24,10 @@ This library manages test data for benchmark purpose. It consists of a Keycloak 
 2. Use the k6 library in your load test scripts
 
    ```javascript
-   import { DatasetClient } from "https://cdn.jsdelivr.net/npm/keycloak-dataset@20.0.0/dist/index.js";
-
-   const client = DatasetClient.authenticate(baseURL, __ENV.KEYCLOAK_DATASET_CLIENT_SECRET);
+   import { DatasetClient } from "@teravn/k6-keycloak-dataset";
 
    export function setup() {
+     const client = DatasetClient.authenticate(baseURL, __ENV.KEYCLOAK_DATASET_CLIENT_SECRET);
      // create some test users
      client.waitForTaskToComplete(
        client.createUsers({
@@ -38,6 +43,7 @@ This library manages test data for benchmark purpose. It consists of a Keycloak 
    }
 
    export function teardown(data) {
+     const client = DatasetClient.authenticate(baseURL, __ENV.KEYCLOAK_DATASET_CLIENT_SECRET);
      // drop all test users
      client.waitForTaskToComplete(
        client.removeUsers({
