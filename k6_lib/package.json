@@ -1,6 +1,6 @@
 {
   "name": "@teravn/k6-keycloak-dataset",
-  "version": "20.0.0",
+  "version": "20.0.1",
   "description": "Create test data for keycloak during k6 setup",
   "scripts": {
     "build": "webpack",
